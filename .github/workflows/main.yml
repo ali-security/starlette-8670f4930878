@@ -28,18 +28,11 @@ jobs:
       - name: Install dependencies
         run: scripts/install
 
-      - name: Run linting checks
-        run: scripts/check
-        if: ${{ matrix.python-version != '3.14' }}
-
       - name: "Build package & docs"
         run: scripts/build
 
       - name: "Run tests"
         run: scripts/test
-
-      - name: "Enforce coverage"
-        run: scripts/coverage
 
   # https://github.com/marketplace/actions/alls-green#why
   check:

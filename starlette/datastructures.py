@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import ItemsView, Iterable, Iterator, KeysView, Mapping, MutableMapping, Sequence, ValuesView
 from shlex import shlex
 from typing import (
@@ -27,6 +28,9 @@ _KeyType = TypeVar("_KeyType")
 # that is, you can't do `Mapping[str, Animal]()["fido"] = Dog()`
 _CovariantValueType = TypeVar("_CovariantValueType", covariant=True)
 
+# Rejects Host header chars (/, ?, #, @, ...) that would let urlsplit produce a path differing from scope["path"].
+_HOST_RE = re.compile(r"^([a-z0-9.-]+|\[[a-f0-9]*:[a-f0-9.:]+\])(?::[0-9]+)?$", re.IGNORECASE)
+
 
 class URL:
     def __init__(
@@ -49,20 +53,20 @@ class URL:
                     host_header = value.decode("latin-1")
                     break
 
-            if host_header is not None:
-                url = f"{scheme}://{host_header}{path}"
-            elif server is None:
-                url = path
-            else:
+            if host_header is not None and _HOST_RE.fullmatch(host_header):
+                netloc = host_header
+            elif server is not None:
                 host, port = server
                 default_port = {"http": 80, "https": 443, "ws": 80, "wss": 443}[scheme]
-                if port == default_port:
-                    url = f"{scheme}://{host}{path}"
-                else:
-                    url = f"{scheme}://{host}:{port}{path}"
+                netloc = host if port == default_port else f"{host}:{port}"
+            else:
+                netloc = None
 
-            if query_string:
-                url += "?" + query_string.decode()
+            query = query_string.decode()
+            if netloc is not None:
+                url = SplitResult(scheme=scheme, netloc=netloc, path=path, query=query, fragment="").geturl()
+            else:
+                url = f"{path}?{query}" if query else path
         elif components:
             assert not url, 'Cannot set both "url" and "**components".'
             url = URL("").replace(**components).components.geturl()
